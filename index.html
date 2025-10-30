@@ -1,0 +1,1216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>30-Theme Reading Habit Builder</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="text/babel">
+const { useState, useEffect } = React;
+
+      const ReadingHabitTracker = () => {
+        const [completedBooks, setCompletedBooks] = useState({});
+        const [bookProgress, setBookProgress] = useState({});
+        const [dailyLogs, setDailyLogs] = useState({});
+        const [expandedMonths, setExpandedMonths] = useState({ 1: true });
+        const [currentStreak, setCurrentStreak] = useState(0);
+        const [editingBook, setEditingBook] = useState(null);
+        const [editValue, setEditValue] = useState('');
+        const [monthStartDates, setMonthStartDates] = useState({});
+        const [editingMonthDate, setEditingMonthDate] = useState(null);
+        const [editDateValue, setEditDateValue] = useState('');
+        const [selectedMonth, setSelectedMonth] = useState('');
+        const [searchQuery, setSearchQuery] = useState('');
+        const [showCalendar, setShowCalendar] = useState(false);
+        const [calendarOffset, setCalendarOffset] = useState(0);
+
+        useEffect(() => {
+          loadData();
+        }, []);
+
+        const loadData = () => {
+          try {
+            const stored = localStorage.getItem('readingTracker');
+            if (stored) {
+              const data = JSON.parse(stored);
+              setCompletedBooks(data.completedBooks || {});
+              setBookProgress(data.bookProgress || {});
+              setDailyLogs(data.dailyLogs || {});
+              setCurrentStreak(data.currentStreak || 0);
+              setMonthStartDates(data.monthStartDates || {});
+            }
+          } catch (error) {
+            console.log('Starting fresh:', error);
+          }
+        };
+
+        const saveData = (books, progress, logs, streak, dates = monthStartDates) => {
+          try {
+            const data = {
+              completedBooks: books,
+              bookProgress: progress,
+              dailyLogs: logs,
+              currentStreak: streak,
+              monthStartDates: dates
+            };
+            localStorage.setItem('readingTracker', JSON.stringify(data));
+          } catch (error) {
+            console.error('Save failed:', error);
+          }
+        };
+
+        const toggleBook = (bookId) => {
+          const newCompleted = { ...completedBooks, [bookId]: !completedBooks[bookId] };
+          setCompletedBooks(newCompleted);
+          saveData(newCompleted, bookProgress, dailyLogs, currentStreak);
+        };
+
+        const startEditingBook = (bookId, currentPages) => {
+          setEditingBook(bookId);
+          setEditValue(currentPages?.toString() || '');
+        };
+
+        const saveBookProgress = (bookId, totalPages) => {
+          const pages = parseInt(editValue) || 0;
+          const validPages = Math.min(Math.max(0, pages), totalPages);
+          const newProgress = { ...bookProgress, [bookId]: validPages };
+          
+          const newCompleted = { ...completedBooks };
+          if (validPages >= totalPages) {
+            newCompleted[bookId] = true;
+          }
+          
+          setBookProgress(newProgress);
+          setCompletedBooks(newCompleted);
+          setEditingBook(null);
+          setEditValue('');
+          saveData(newCompleted, newProgress, dailyLogs, currentStreak);
+        };
+
+        const cancelEdit = () => {
+          setEditingBook(null);
+          setEditValue('');
+        };
+
+        const startEditingMonthDate = (monthNum, currentDate) => {
+          setEditingMonthDate(monthNum);
+          setEditDateValue(currentDate || '');
+        };
+
+        const saveMonthStartDate = (monthNum) => {
+          const newDates = { ...monthStartDates, [monthNum]: editDateValue };
+          setMonthStartDates(newDates);
+          setEditingMonthDate(null);
+          setEditDateValue('');
+          saveData(completedBooks, bookProgress, dailyLogs, currentStreak, newDates);
+        };
+
+        const cancelDateEdit = () => {
+          setEditingMonthDate(null);
+          setEditDateValue('');
+        };
+
+        const getCalendarDays = () => {
+          const days = [];
+          const today = new Date();
+          
+          const startDate = new Date(today);
+          startDate.setMonth(startDate.getMonth() - calendarOffset);
+          startDate.setDate(startDate.getDate() - 29);
+          
+          for (let i = 0; i < 30; i++) {
+            const date = new Date(startDate);
+            date.setDate(date.getDate() + i);
+            const dateStr = date.toISOString().split('T')[0];
+            const todayStr = today.toISOString().split('T')[0];
+            
+            days.push({
+              date: dateStr,
+              dayOfWeek: date.getDay(),
+              dayOfMonth: date.getDate(),
+              month: date.getMonth(),
+              year: date.getFullYear(),
+              isLogged: dailyLogs[dateStr] || false,
+              isToday: dateStr === todayStr,
+              isFuture: date > today
+            });
+          }
+          
+          return days;
+        };
+
+        const getCalendarTitle = () => {
+          if (calendarOffset === 0) return 'Last 30 Days';
+          const today = new Date();
+          const offsetDate = new Date(today);
+          offsetDate.setMonth(offsetDate.getMonth() - calendarOffset);
+          return `${getMonthName(offsetDate.getMonth())} ${offsetDate.getFullYear()}`;
+        };
+
+        const getAllMonths = () => {
+          const months = [];
+          readingData.forEach(phase => {
+            phase.months.forEach(month => {
+              months.push({
+                num: month.num,
+                title: month.title,
+                phaseTitle: phase.phase
+              });
+            });
+          });
+          return months;
+        };
+
+        const jumpToMonth = (monthNum) => {
+          if (!monthNum) return;
+          
+          const monthNumber = parseInt(monthNum);
+          setExpandedMonths({ [monthNumber]: true });
+          
+          setTimeout(() => {
+            const element = document.getElementById(`month-${monthNumber}`);
+            if (element) {
+              element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              element.classList.add('ring-4', 'ring-blue-400');
+              setTimeout(() => {
+                element.classList.remove('ring-4', 'ring-blue-400');
+              }, 2000);
+            }
+          }, 100);
+        };
+
+        const getCurrentMonth = () => {
+          const today = new Date();
+          
+          for (let phase of readingData) {
+            for (let month of phase.months) {
+              const startDate = monthStartDates[month.num];
+              if (startDate) {
+                const start = new Date(startDate);
+                const totalPages = month.books.reduce((sum, book) => sum + book.pages, 0);
+                const avgPagesPerDay = 30;
+                const estimatedDays = Math.ceil(totalPages / avgPagesPerDay);
+                const end = new Date(start);
+                end.setDate(end.getDate() + estimatedDays - 1);
+                
+                if (today >= start && today <= end) {
+                  const currentBook = month.books.find(book => !completedBooks[book.id]);
+                  return { month, phase: phase.phase, book: currentBook };
+                }
+              }
+            }
+          }
+          
+          for (let phase of readingData) {
+            for (let month of phase.months) {
+              const currentBook = month.books.find(book => !completedBooks[book.id]);
+              if (currentBook) {
+                return { month, phase: phase.phase, book: currentBook };
+              }
+            }
+          }
+          
+          return null;
+        };
+
+        const getFilteredData = () => {
+          let filtered = readingData;
+
+          if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase();
+            filtered = filtered.map(phase => ({
+              ...phase,
+              months: phase.months.map(month => ({
+                ...month,
+                books: month.books.filter(book =>
+                  book.title.toLowerCase().includes(query) ||
+                  book.author.toLowerCase().includes(query) ||
+                  book.summary?.toLowerCase().includes(query)
+                )
+              })).filter(month => month.books.length > 0)
+            })).filter(phase => phase.months.length > 0);
+          }
+
+          return filtered;
+        };
+
+        const calculateDateRange = (month) => {
+          const startDate = monthStartDates[month.num];
+          if (!startDate) return month.dates;
+
+          const start = new Date(startDate);
+          const totalPages = month.books.reduce((sum, book) => sum + book.pages, 0);
+          const avgPagesPerDay = 30;
+          const estimatedDays = Math.ceil(totalPages / avgPagesPerDay);
+          
+          const end = new Date(start);
+          end.setDate(end.getDate() + estimatedDays - 1);
+
+          const formatDate = (date) => {
+            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+          };
+
+          return `${formatDate(start)} - ${formatDate(end)}`;
+        };
+
+        const getDaysRemaining = (month) => {
+          const startDate = monthStartDates[month.num];
+          if (!startDate) return null;
+
+          const start = new Date(startDate);
+          const totalPages = month.books.reduce((sum, book) => sum + book.pages, 0);
+          const avgPagesPerDay = 30;
+          const estimatedDays = Math.ceil(totalPages / avgPagesPerDay);
+          
+          const end = new Date(start);
+          end.setDate(end.getDate() + estimatedDays - 1);
+
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          
+          const diffTime = end.getTime() - today.getTime();
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+          return diffDays;
+        };
+
+        const logToday = () => {
+          const today = new Date().toISOString().split('T')[0];
+          const newLogs = { ...dailyLogs, [today]: true };
+          const newStreak = calculateStreak(newLogs);
+          setDailyLogs(newLogs);
+          setCurrentStreak(newStreak);
+          saveData(completedBooks, bookProgress, newLogs, newStreak);
+        };
+
+        const calculateStreak = (logs) => {
+          let streak = 0;
+          const today = new Date();
+          for (let i = 0; i < 365; i++) {
+            const date = new Date(today);
+            date.setDate(date.getDate() - i);
+            const dateStr = date.toISOString().split('T')[0];
+            if (logs[dateStr]) streak++;
+            else break;
+          }
+          return streak;
+        };
+
+        const getMonthName = (monthIndex) => {
+          const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+          return months[monthIndex];
+        };
+
+        const toggleMonth = (monthNum) => {
+          setExpandedMonths(prev => ({ ...prev, [monthNum]: !prev[monthNum] }));
+        };
+
+        const getMonthStats = (month) => {
+          const totalPages = month.books.reduce((sum, book) => sum + book.pages, 0);
+          const readPages = month.books.reduce((sum, book) => {
+            const progress = bookProgress[book.id] || 0;
+            return sum + progress;
+          }, 0);
+          const remainingPages = totalPages - readPages;
+          
+          return { totalPages, readPages, remainingPages };
+        };
+
+        const getTimelineRange = () => {
+          let earliestDate = null;
+          let latestDate = null;
+          
+          for (let phase of readingData) {
+            for (let month of phase.months) {
+              const startDate = monthStartDates[month.num];
+              if (startDate) {
+                const start = new Date(startDate);
+                const totalPages = month.books.reduce((sum, book) => sum + book.pages, 0);
+                const avgPagesPerDay = 30;
+                const estimatedDays = Math.ceil(totalPages / avgPagesPerDay);
+                const end = new Date(start);
+                end.setDate(end.getDate() + estimatedDays - 1);
+                
+                if (!earliestDate || start < earliestDate) {
+                  earliestDate = start;
+                }
+                if (!latestDate || end > latestDate) {
+                  latestDate = end;
+                }
+              }
+            }
+          }
+          
+          const formatMonth = (date) => {
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            return `${months[date.getMonth()]} ${date.getFullYear()}`;
+          };
+          
+          let duration = "2.5-year journey";
+          if (earliestDate && latestDate) {
+            const diffTime = Math.abs(latestDate - earliestDate);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            const diffYears = (diffDays / 365).toFixed(1);
+            
+            if (diffYears >= 1) {
+              duration = `${diffYears}-year journey`;
+            } else {
+              const diffMonths = Math.round(diffDays / 30);
+              duration = `${diffMonths}-month journey`;
+            }
+            
+            return `${duration} (${formatMonth(earliestDate)} - ${formatMonth(latestDate)})`;
+          }
+          
+          return `${duration} (Oct 2025 - Feb 2029)`;
+        };
+const readingData = [
+          {
+            phase: "Pre-Phase: PREPARATION",
+            subtitle: "Prime your mindset",
+            phaseExplanation: "Before building the reading habit, clear your mind of anxiety and worry. Carnegie's practical advice helps you approach this 30-theme journey with confidence and calm. Take 3-4 days to read this short, actionable book. It sets the emotional foundation for everything that follows.",
+            months: [
+              {
+                num: 0,
+                title: "Mental Preparation",
+                dates: "Oct 29 - Nov 1, 2025",
+                focus: "Read this before starting Theme 1",
+                description: "Start your reading journey by addressing the mental barriers that might hold you back. Carnegie's timeless wisdom on managing worry and anxiety prepares you psychologically for the commitment ahead. This short book is practical, immediately useful, and sets a positive tone.",
+                books: [
+                  { id: "m0-1", title: "How to Stop Worrying and Start Living", author: "Dale Carnegie", pages: 320, year: 1948, type: "non-fiction", summary: "Practical techniques for overcoming anxiety and worry, based on real-life examples. Teaches how to break the worry habit before it breaks you." }
+                ]
+              }
+            ]
+          },
+          {
+            phase: "Phase 1: HABIT FORMATION",
+            subtitle: "Build daily consistency",
+            phaseExplanation: "The foundation of everything. Your only job in these first 3 themes is to show up daily—even if it's just one page. Start with books that are gripping and accessible to make reading feel like a reward, not a chore. Pair page-turners with fascinating psychology to hook your brain. Don't worry about speed or 'productivity'—focus purely on consistency. Miss a day? Start again the next. The habit matters more than the content right now.",
+            months: [
+              {
+                num: 1,
+                title: "Technology & Dark Patterns",
+                dates: "Nov 2 - Nov 29, 2025",
+                focus: "Show up daily - 1 page minimum",
+                description: "Start with a gripping modern dystopia that explores technology's dark side, paired with the science of persuasion. The Circle examines social media surveillance and privacy in a page-turning narrative, while Cialdini reveals the psychological mechanisms behind manipulation in both fiction and real life.",
+                books: [
+                  { id: "m1-1", title: "The Circle", author: "Dave Eggers", pages: 497, year: 2013, type: "fiction", summary: "A young woman lands her dream job at a powerful tech company that's pushing for total transparency and surveillance, raising questions about privacy and freedom." },
+                  { id: "m1-2", title: "Influence: The Psychology of Persuasion", author: "Robert Cialdini", pages: 320, year: 1984, type: "non-fiction", summary: "Explores six principles of persuasion and how they're used to influence decisions in marketing, sales, and everyday life." }
+                ]
+              },
+              {
+                num: 2,
+                title: "Deep Thinking & Decision Making",
+                dates: "Nov 30 - Jan 2, 2026",
+                focus: "Continue streak - 20-25 pages/day target",
+                description: "Explore the art of contemplation through Ishiguro's masterful portrait of a butler reflecting on his life choices, then understand the science behind those choices with Kahneman and Ariely. The Remains of the Day shows how we rationalize decisions in hindsight, while Thinking, Fast and Slow reveals the cognitive biases that lead us astray, and Predictably Irrational proves we make the same mistakes repeatedly. Together, they illuminate the human and scientific dimensions of how we think and choose.",
+                books: [
+                  { id: "m2-1", title: "The Remains of the Day", author: "Kazuo Ishiguro", pages: 258, year: 1989, type: "fiction", summary: "A British butler reflects on his decades of service and unspoken emotions, questioning his life choices and the meaning of dignity." },
+                  { id: "m2-2", title: "Thinking, Fast and Slow", author: "Daniel Kahneman", pages: 499, year: 2011, type: "non-fiction", summary: "Nobel Prize winner explains two systems of thinking: fast, intuitive System 1 and slow, deliberate System 2, and how they shape our judgments." },
+                  { id: "m2-3", title: "Predictably Irrational", author: "Dan Ariely", pages: 384, year: 2008, type: "non-fiction", summary: "The hidden forces that shape our decisions. Reveals how we systematically make irrational choices in predictable ways—from pricing to relationships." }
+                ]
+              },
+              {
+                num: 3,
+                title: "Heartwarming Growth",
+                dates: "Jan 3 - Jan 30, 2026 + Buffer",
+                focus: "Habit check-in - Are you reading 6-7 days/week?",
+                description: "A gentler approach to resilience and healing. A Man Called Ove is a touching story about a curmudgeon who finds new purpose through unexpected friendships. Pair this with The Body Keeps the Score to understand trauma and healing from a compassionate, scientific perspective.",
+                books: [
+                  { id: "m3-1", title: "A Man Called Ove", author: "Fredrik Backman", pages: 337, year: 2012, type: "fiction", summary: "A grumpy widower's life is turned upside down by boisterous new neighbors, revealing his hidden depths and capacity for connection and change." },
+                  { id: "m3-2", title: "The Body Keeps the Score", author: "Bessel van der Kolk", pages: 464, year: 2014, type: "non-fiction", summary: "Groundbreaking exploration of how trauma reshapes the brain and body, with paths to recovery through therapy, mindfulness, and movement." }
+                ]
+              }
+            ]
+          },
+          {
+            phase: "Phase 2: UNDERSTANDING SELF",
+            subtitle: "Sustainable pace: 25-30 pages/day",
+            phaseExplanation: "Now that the habit is forming, go deeper. These 6 themes explore who you are—your personality, social behaviors, inner world, and shadow sides. You'll read about introverts, manipulation, existential meaning, and peak performance. The goal is self-awareness: understanding your own psychology, biases, and patterns. This phase can be emotionally heavy at times (especially Theme 6), so pace yourself and practice self-care. You're building not just a reading habit, but a thinking habit.",
+            months: [
+              {
+                num: 4,
+                title: "Introversion & Inner Worlds",
+                dates: "Feb 7 - Mar 6, 2026",
+                description: "Celebrate the power of quiet contemplation. Stoner is a love letter to the inner life—a man who finds richness in books and teaching despite external failures. Susan Cain then validates this temperament scientifically, showing that introversion isn't a flaw but a different way of processing the world. Perfect for anyone who feels out of place in an extrovert-dominated culture.",
+                books: [
+                  { id: "m4-1", title: "Stoner", author: "John Williams", pages: 288, year: 1965, type: "fiction", summary: "The quiet, devastating story of an ordinary man's life—a university professor who finds meaning in teaching and literature despite personal disappointments." },
+                  { id: "m4-2", title: "Quiet: The Power of Introverts", author: "Susan Cain", pages: 368, year: 2012, type: "non-fiction", summary: "Challenges the extrovert ideal in Western culture, showing how introverts bring extraordinary talents and abilities to the world." }
+                ]
+              },
+              {
+                num: 5,
+                title: "Wealth, Ambition & Society",
+                dates: "Mar 7 - Apr 10, 2026",
+                description: "Explore the American Dream through Fitzgerald's Jazz Age masterpiece. Gatsby's tragic pursuit of wealth and love reveals the hollowness of material success. Brooks then explains the unconscious social forces and status games that drive human behavior.",
+                books: [
+                  { id: "m5-1", title: "The Great Gatsby", author: "F. Scott Fitzgerald", pages: 180, year: 1925, type: "fiction", summary: "A mysterious millionaire throws lavish parties in pursuit of a lost love, exposing the emptiness behind the glittering facade of 1920s wealth." },
+                  { id: "m5-2", title: "The Social Animal", author: "David Brooks", pages: 424, year: 2011, type: "non-fiction", summary: "Explores the unconscious mind through a fictional couple's life story, blending neuroscience, psychology, and sociology." }
+                ]
+              },
+              {
+                num: 6,
+                title: "Toxic Relationships & Manipulation",
+                dates: "Apr 11 - May 15, 2026 + Buffer",
+                focus: "⚠️ Emotionally heavy - extra self-care",
+                description: "Confront the darkest aspects of human relationships. Kevin explores a mother's horror at her son's nature, questioning whether evil is born or made. Zimbardo's research shows how situations can corrupt good people. Learn to recognize toxic patterns and understand systemic cruelty.",
+                books: [
+                  { id: "m6-1", title: "We Need to Talk About Kevin", author: "Lionel Shriver", pages: 400, year: 2003, type: "fiction", summary: "A mother writes letters to her husband about their son Kevin, who committed a high school massacre, questioning nature vs. nurture." },
+                  { id: "m6-2", title: "The Lucifer Effect", author: "Philip Zimbardo", pages: 551, year: 2007, type: "non-fiction", summary: "The psychologist behind the Stanford Prison Experiment explores how good people turn evil and the power of social situations." }
+                ]
+              },
+              {
+                num: 7,
+                title: "Existentialism & Meaning",
+                dates: "May 23 - Jun 19, 2026",
+                description: "Confront the absurd with Camus' existential masterpiece. A man commits murder and faces execution while remaining emotionally detached, questioning meaning itself. Camus then provides the philosophical foundation in his essay on why life is worth living despite its absurdity. Frankl argues that meaning isn't found in comfort but in how we respond to suffering. Together, they explore the full spectrum of existential thought.",
+                books: [
+                  { id: "m7-1", title: "The Stranger", author: "Albert Camus", pages: 123, year: 1942, type: "fiction", summary: "A detached French Algerian becomes entangled in murder, exploring themes of absurdism, alienation, and the meaninglessness of human existence." },
+                  { id: "m7-2", title: "The Myth of Sisyphus", author: "Albert Camus", pages: 120, year: 1942, type: "non-fiction", summary: "Camus' foundational philosophical essay on absurdism. Argues that life's meaninglessness doesn't require suicide—we must imagine Sisyphus happy." },
+                  { id: "m7-3", title: "Man's Search for Meaning", author: "Viktor Frankl", pages: 165, year: 1946, type: "non-fiction", summary: "Holocaust survivor and psychiatrist describes finding purpose in suffering, introducing logotherapy—the belief that meaning is life's primary drive." }
+                ]
+              },
+              {
+                num: 8,
+                title: "Flow States & Peak Performance",
+                dates: "Jun 20 - Jul 31, 2026",
+                description: "Experience deep immersion in both fiction and life. The Goldfinch is itself a lesson in flow—you'll lose yourself in Tartt's intricate storytelling. Then learn the science of peak performance: how stress and recovery cycles create excellence.",
+                books: [
+                  { id: "m8-1", title: "The Goldfinch", author: "Donna Tartt", pages: 771, year: 2013, type: "fiction", summary: "After his mother dies in a museum bombing, a boy steals a priceless painting that becomes his secret companion through a chaotic life." },
+                  { id: "m8-2", title: "Peak Performance", author: "Stulberg & Magness", pages: 272, year: 2017, type: "non-fiction", summary: "Science-backed principles for achieving excellence by managing stress and recovery cycles across athletics, business, and creative pursuits." }
+                ]
+              },
+              {
+                num: 9,
+                title: "Dystopia & Consciousness",
+                dates: "Aug 1 - Aug 28, 2026 + Buffer",
+                description: "Question the nature of freedom and control. Brave New World imagines a society engineered for happiness through drugs and conditioning. Haidt reveals that our moral reasoning is often post-hoc justification for emotional intuitions. How free is your thinking?",
+                books: [
+                  { id: "m9-1", title: "Brave New World", author: "Aldous Huxley", pages: 268, year: 1932, type: "fiction", summary: "In a future where humans are engineered and conditioned for stability, one man questions the cost of a society without pain, art, or freedom." },
+                  { id: "m9-2", title: "The Righteous Mind", author: "Jonathan Haidt", pages: 419, year: 2012, type: "non-fiction", summary: "Explores why good people are divided by politics and religion, revealing the moral foundations that shape our beliefs and judgments." }
+                ]
+              }
+            ]
+          },
+          {
+            phase: "Phase 3: FINDING MEANING",
+            subtitle: "Pace: 30-35 pages/day",
+            phaseExplanation: "With self-knowledge comes the big questions: What matters? What is identity? How do we face death? What do we regret? These 6 themes confront mortality, memory, transformation, and legacy. You'll read some of the heaviest material in the entire plan (Themes 11-13), but also some of the most beautiful and empowering (Themes 14-15). This phase transforms readers into philosophers—people who don't just consume stories but extract wisdom. By the end, you'll have a clearer sense of what you value and why you're alive.",
+            months: [
+              {
+                num: 10,
+                title: "Identity & Self-Discovery",
+                dates: "Sep 5 - Oct 23, 2026",
+                description: "Explore what it means to create yourself. Chabon's epic follows two cousins who invent superhero identities during wartime—showing how we craft selves through art and imagination. Harari reveals that all human identity is storytelling on a species level.",
+                books: [
+                  { id: "m10-1", title: "The Amazing Adventures of Kavalier & Clay", author: "Michael Chabon", pages: 639, year: 2000, type: "fiction", summary: "Two Jewish cousins create a comic book superhero during WWII, exploring art, escape, identity, and the American Dream in 1940s New York." },
+                  { id: "m10-2", title: "Sapiens", author: "Yuval Noah Harari", pages: 443, year: 2011, type: "non-fiction", summary: "A brief history of humankind from the Stone Age to the modern age, exploring how Homo sapiens came to dominate the world." }
+                ]
+              },
+              {
+                num: 11,
+                title: "Time, Death & What Matters",
+                dates: "Oct 24 - Nov 20, 2026",
+                focus: "⚠️ Heavy themes - consider reading with someone",
+                description: "Face mortality head-on. A young neurosurgeon confronts terminal cancer, searching for meaning when time runs out. A surgeon then examines how modern medicine often fails the dying by prioritizing quantity over quality of life. Together, they teach us what truly matters when facing the end.",
+                books: [
+                  { id: "m11-1", title: "When Breath Becomes Air", author: "Paul Kalanithi", pages: 228, year: 2016, type: "fiction", summary: "A neurosurgeon confronts his own terminal cancer at age 36, reflecting on what makes life worth living when facing death." },
+                  { id: "m11-2", title: "Being Mortal", author: "Atul Gawande", pages: 297, year: 2014, type: "non-fiction", summary: "A surgeon examines how medicine fails the dying, advocating for better end-of-life care focused on quality of life over extending it." }
+                ]
+              },
+              {
+                num: 12,
+                title: "Hope After Collapse",
+                dates: "Nov 21 - Dec 18, 2026",
+                description: "Find beauty in survival. Station Eleven weaves between pre and post-pandemic worlds, showing how art and human connection persist even after civilization falls. A more hopeful apocalypse than The Road, celebrating resilience and creativity.",
+                books: [
+                  { id: "m12-1", title: "Station Eleven", author: "Emily St. John Mandel", pages: 333, year: 2014, type: "fiction", summary: "A traveling theater troupe performs Shakespeare in a post-pandemic world, exploring how art and memory help humanity survive catastrophe." },
+                  { id: "m12-2", title: "Life in Spite of Everything", author: "Viktor E. Frankl", pages: 156, year: 1982, type: "non-fiction", summary: "Frankl's lesser-known work expanding on logotherapy and finding meaning in life despite suffering, adversity, and the absurd." }
+                ]
+              },
+              {
+                num: 13,
+                title: "Regret & Life Design",
+                dates: "Dec 19, 2026 - Jan 22, 2027 + Buffer",
+                description: "Learn from those who've faced the end. Ishiguro's clones discover their predetermined fate too late, living with quiet acceptance and lost possibilities. A palliative care nurse then shares the actual regrets of the dying—wishing they'd lived authentically, worked less, expressed feelings more. Use these lessons now, while there's still time.",
+                books: [
+                  { id: "m13-1", title: "Never Let Me Go", author: "Kazuo Ishiguro", pages: 288, year: 2005, type: "fiction", summary: "Students at an English boarding school slowly discover the disturbing truth about their purpose in a quietly dystopian world." },
+                  { id: "m13-2", title: "The Top Five Regrets of the Dying", author: "Bronnie Ware", pages: 256, year: 2011, type: "non-fiction", summary: "A palliative care nurse shares the most common regrets of the dying, offering wisdom on living authentically and without regret." }
+                ]
+              },
+              {
+                num: 14,
+                title: "Memory, Identity & Brain Science",
+                dates: "Jan 30 - Feb 26, 2027",
+                description: "Question the reliability of your own mind. Barnes' narrator revisits his past only to discover his memories are unreliable, his understanding incomplete. Ramachandran then reveals how brain injuries expose the mechanisms of consciousness, memory, and self. Both show that identity is more fragile and constructed than we'd like to believe.",
+                books: [
+                  { id: "m14-1", title: "The Sense of an Ending", author: "Julian Barnes", pages: 163, year: 2011, type: "fiction", summary: "An aging man revisits memories of his youth when a mysterious bequest forces him to confront the unreliability of memory and truth." },
+                  { id: "m14-2", title: "The Tell-Tale Brain", author: "V.S. Ramachandran", pages: 357, year: 2011, type: "non-fiction", summary: "A neuroscientist explores what brain disorders reveal about human nature, consciousness, creativity, and what makes us uniquely human." }
+                ]
+              },
+              {
+                num: 15,
+                title: "Female Power & Transformation",
+                dates: "Feb 27 - Apr 2, 2027",
+                description: "Reclaim the wild feminine. Circe transforms from a scorned nymph into a powerful witch who chooses her own destiny, rejecting both gods and men who try to control her. Estés then uses fairy tales and myths to excavate women's instinctual nature buried under socialization. Both celebrate the untamed, creative, powerful aspects of the feminine psyche.",
+                books: [
+                  { id: "m15-1", title: "Circe", author: "Madeline Miller", pages: 400, year: 2018, type: "fiction", summary: "The witch-goddess Circe transforms from an outcast among gods to a powerful woman who chooses her own path in this feminist Greek mythology retelling." },
+                  { id: "m15-2", title: "Women Who Run With the Wolves", author: "Clarissa Pinkola Estés", pages: 520, year: 1992, type: "non-fiction", summary: "Uses multicultural myths and stories to explore women's wild nature and reclaim feminine instinct, creativity, and power." }
+                ]
+              }
+            ]
+          },
+          {
+            phase: "Phase 4: BUILDING SYSTEMS",
+            subtitle: "Pace: 30-35 pages/day",
+            phaseExplanation: "You're a strong reader now—time to get practical. These 7 themes focus on building better systems in your life: habits, focus, decision-making, and thinking frameworks. You'll tackle longer, more complex books (some over 1,000 pages) with confidence. The fiction becomes more ambitious and layered; the non-fiction more technical and actionable. This is where reading transforms from personal growth into life optimization. You're not just understanding yourself—you're designing yourself.",
+            months: [
+              {
+                num: 16,
+                title: "Survival & Problem-Solving",
+                dates: "Apr 3 - May 7, 2027 + Buffer",
+                description: "Two incredible survival stories—one fiction, one real. The Martian shows how ingenuity and systems thinking keep an astronaut alive on Mars. Endurance reveals how Shackleton's leadership saved his crew in Antarctica. Both celebrate human resilience in impossible situations.",
+                books: [
+                  { id: "m16-1", title: "The Martian", author: "Andy Weir", pages: 369, year: 2011, type: "fiction", summary: "An astronaut stranded on Mars must use science, engineering, and sheer determination to survive until rescue—funny, thrilling, and scientifically accurate." },
+                  { id: "m16-2", title: "Endurance", author: "Alfred Lansing", pages: 282, year: 1959, type: "non-fiction", summary: "The astonishing true story of Shackleton's 1914 Antarctic expedition and how his crew survived impossible odds after their ship was crushed by ice." }
+                ]
+              },
+              {
+                num: 17,
+                title: "Mystery & Deep Focus",
+                dates: "May 15 - Jun 18, 2027",
+                description: "Get lost in a Gothic mystery set in post-war Barcelona. A boy discovers a mysterious book in the Cemetery of Forgotten Books, leading to a dark tale of love, revenge, and secrets. Newport then teaches you to cultivate the deep focus that makes such immersive reading possible.",
+                books: [
+                  { id: "m17-1", title: "The Shadow of the Wind", author: "Carlos Ruiz Zafón", pages: 487, year: 2001, type: "fiction", summary: "In post-war Barcelona, a boy discovers a mysterious book that leads him into a labyrinth of secrets, forbidden love, and a dark conspiracy." },
+                  { id: "m17-2", title: "Deep Work", author: "Cal Newport", pages: 296, year: 2016, type: "non-fiction", summary: "Rules for focused success in a distracted world—how to cultivate deep concentration and produce meaningful work in an age of constant interruption." }
+                ]
+              },
+              {
+                num: 18,
+                title: "Habit Architecture & Life Design",
+                dates: "Jun 19 - Aug 6, 2027",
+                description: "Reflect on habits while reading about loneliness and transformation. Eleanor Oliphant's journey from isolation to connection shows how small changes compound. Then study the frameworks with Clear, Towles, and Covey.",
+                books: [
+                  { id: "m18-1", title: "Atomic Habits", author: "James Clear", pages: 320, year: 2018, type: "non-fiction", summary: "Proven framework for improving every day—tiny changes, remarkable results. Perfect for reflecting on your reading habit itself." },
+                  { id: "m18-2", title: "Eleanor Oliphant Is Completely Fine", author: "Gail Honeyman", pages: 327, year: 2017, type: "fiction", summary: "A socially awkward woman who lives a carefully structured life begins to open up to friendship, confronting her traumatic past." },
+                  { id: "m18-3", title: "A Gentleman in Moscow", author: "Amor Towles", pages: 462, year: 2016, type: "fiction", summary: "A count is sentenced to house arrest in a luxury hotel and lives a rich life confined to one building across decades of Russian history." },
+                  { id: "m18-4", title: "The 7 Habits of Highly Effective People", author: "Stephen Covey", pages: 380, year: 1989, type: "non-fiction", summary: "Character-based approach to personal and interpersonal effectiveness, from being proactive to seeking first to understand." }
+                ]
+              },
+              {
+                num: 19,
+                title: "Decisions, Choice & Architecture",
+                dates: "Aug 7 - Sep 10, 2027",
+                description: "Explore the science of choice. Ursula lives and dies repeatedly, each life shaped by small decisions that ripple into vastly different outcomes. Schwartz explains why modern abundance paradoxically makes us anxious and paralyzed. Thaler and Sunstein then show how choice architecture can nudge us toward better decisions. Together they reveal: choices shape destiny, but too many choices harm us, and design matters more than willpower.",
+                books: [
+                  { id: "m19-1", title: "Life After Life", author: "Kate Atkinson", pages: 544, year: 2013, type: "fiction", summary: "Ursula Todd dies and is reborn repeatedly, living different versions of her life through 20th century England in this innovative narrative." },
+                  { id: "m19-2", title: "The Paradox of Choice", author: "Barry Schwartz", pages: 304, year: 2004, type: "non-fiction", summary: "Why more is less—how the abundance of choice in modern life leads to anxiety, dissatisfaction, and decision paralysis." },
+                  { id: "m19-3", title: "Nudge", author: "Richard Thaler & Cass Sunstein", pages: 312, year: 2008, type: "non-fiction", summary: "How to improve decisions about health, wealth, and happiness through choice architecture and gentle nudges rather than mandates." }
+                ]
+              },
+              {
+                num: 20,
+                title: "Epic Sci-Fi & Focus",
+                dates: "Sep 11 - Nov 5, 2027 + Buffer",
+                description: "Dive into Frank Herbert's masterpiece of politics, ecology, and human evolution. Dune is world-building at its finest. McKeown then teaches you to identify what truly matters and eliminate the rest—perfect for a strong reader tackling complex material.",
+                books: [
+                  { id: "m20-1", title: "Dune", author: "Frank Herbert", pages: 688, year: 1965, type: "fiction", summary: "On a desert planet, a young nobleman becomes embroiled in an epic struggle for control of the universe's most valuable substance." },
+                  { id: "m20-2", title: "Essentialism", author: "Greg McKeown", pages: 260, year: 2014, type: "non-fiction", summary: "The disciplined pursuit of less—how to do less but better by identifying and eliminating the nonessential." }
+                ]
+              },
+              {
+                num: 21,
+                title: "Systems, Nature & Principles",
+                dates: "Nov 13 - Dec 17, 2027",
+                description: "Explore interconnected systems at multiple scales. The Overstory weaves human lives through trees and ecosystems. Dalio provides frameworks for decision-making systems. Meadows teaches you to see the hidden structures that govern everything from nature to organizations.",
+                books: [
+                  { id: "m21-1", title: "The Overstory", author: "Richard Powers", pages: 502, year: 2018, type: "fiction", summary: "Nine Americans' lives intertwine through their connections to trees in this Pulitzer-winning epic about humanity's relationship with nature." },
+                  { id: "m21-2", title: "Principles", author: "Ray Dalio", pages: 592, year: 2017, type: "non-fiction", summary: "The founder of Bridgewater Associates shares life and work principles for achieving success through radical transparency and idea meritocracy." },
+                  { id: "m21-3", title: "Thinking in Systems", author: "Donella Meadows", pages: 240, year: 2008, type: "non-fiction", summary: "A primer on understanding complex systems—how they work, why they surprise us, and how to intervene effectively in them." }
+                ]
+              },
+              {
+                num: 22,
+                title: "Complex Narratives & Time",
+                dates: "Dec 18, 2027 - Feb 11, 2028",
+                description: "Bend your perception of time. Mitchell weaves six stories across centuries, showing how actions echo across generations and how souls might reincarnate through time. Rovelli then dismantles our intuitive understanding of time itself, revealing it as relative, directional, and far stranger than we imagine. Both challenge linear thinking and reveal hidden connections.",
+                books: [
+                  { id: "m22-1", title: "Cloud Atlas", author: "David Mitchell", pages: 509, year: 2004, type: "fiction", summary: "Six interconnected stories spanning from the 19th century to a post-apocalyptic future, exploring how actions ripple across time and lives." },
+                  { id: "m22-2", title: "The Order of Time", author: "Carlo Rovelli", pages: 256, year: 2017, type: "non-fiction", summary: "A physicist's poetic exploration of time's nature, from quantum mechanics to our perception of past, present, and future." }
+                ]
+              }
+            ]
+          },
+          {
+            phase: "Phase 5: CREATING SUCCESS",
+            subtitle: "Pace: 25-30 pages/day",
+            phaseExplanation: "The final stretch focuses on external achievement: wealth, power, strategy, ambition, and mastery. You'll read some of the most challenging literature (Dostoevsky, Tolstoy, George Eliot) alongside hardcore practical guides on money, influence, and career. This phase assumes you've done the inner work (Phases 2-3) and built the systems (Phase 4)—now it's about applying everything to create tangible results in the world. You'll end with War and Peace and Mastery, having become the kind of person who can tackle—and finish—anything.",
+            months: [
+              {
+                num: 23,
+                title: "Wealth: Deception vs. Reality",
+                dates: "Feb 12 - Mar 17, 2028 + Buffer",
+                description: "Explore wealth from three angles. Tom Ripley pursues luxury through deception and identity theft. The Millionaire Next Door reveals that real wealthy people live modestly and build slowly. Your Money or Your Life teaches values-based financial independence. Together: the fantasy of wealth (Ripley), the reality of wealth (Millionaire), and the philosophy of wealth (Your Money). A complete education in three books.",
+                books: [
+                  { id: "m23-1", title: "The Talented Mr. Ripley", author: "Patricia Highsmith", pages: 290, year: 1955, type: "fiction", summary: "A charming con artist murders and assumes the identity of a wealthy acquaintance, living a dangerous double life in 1950s Italy." },
+                  { id: "m23-2", title: "The Millionaire Next Door", author: "Thomas Stanley & William Danko", pages: 272, year: 1996, type: "non-fiction", summary: "Surprising secrets of America's wealthy—most millionaires live below their means, work hard, and invest wisely rather than displaying wealth." },
+                  { id: "m23-3", title: "Your Money or Your Life", author: "Vicki Robin", pages: 368, year: 1992, type: "non-fiction", summary: "Transform your relationship with money and achieve financial independence by aligning spending with values and life energy." }
+                ]
+              },
+              {
+                num: 24,
+                title: "Learning & Growth Mindset",
+                dates: "Mar 25 - Apr 28, 2028",
+                description: "Transform how you think about ability and learning. Westover's escape through education shows the power of believing you can change. Dweck then provides the research: growth mindset vs. fixed mindset shapes everything—intelligence, relationships, success. Together they prove that who you are isn't fixed; you can always grow.",
+                books: [
+                  { id: "m24-1", title: "Educated", author: "Tara Westover", pages: 334, year: 2018, type: "fiction", summary: "A woman escapes her survivalist family through education, earning a PhD from Cambridge while grappling with family loyalty and self-invention." },
+                  { id: "m24-2", title: "Mindset: The New Psychology of Success", author: "Carol S. Dweck", pages: 320, year: 2006, type: "non-fiction", summary: "Groundbreaking research on how our beliefs about ability shape success. Fixed vs. growth mindset determines how we approach challenges, failure, and learning." }
+                ]
+              },
+              {
+                num: 25,
+                title: "Vision, Individualism & Innovation",
+                dates: "Apr 29 - May 26, 2028",
+                description: "Study uncompromising vision. Ayn Rand's architect refuses to compromise his creative integrity despite pressure from society. Thiel then provides frameworks for building genuinely innovative companies that create new value rather than copying existing success. Both celebrate radical individualism and original thinking.",
+                books: [
+                  { id: "m25-1", title: "The Fountainhead", author: "Ayn Rand", pages: 752, year: 1943, type: "fiction", summary: "An idealistic architect refuses to compromise his modernist vision, battling against conventional society and collectivist thinking in 1920s-40s New York." },
+                  { id: "m25-2", title: "Zero to One", author: "Peter Thiel", pages: 224, year: 2014, type: "non-fiction", summary: "PayPal co-founder on building companies that create new things—going from zero to one rather than copying what works." }
+                ]
+              },
+              {
+                num: 26,
+                title: "Morality, Crime & Power",
+                dates: "May 27 - Jul 28, 2028",
+                description: "Descend into the psychology of transgression and power. Raskolnikov commits murder to prove he's a Nietzschean superman above morality, then crumbles under guilt. Machiavelli provides the original playbook for amoral leadership—what a prince must do to maintain power. Greene then distills 3,000 years of power dynamics into modern lessons. Together, they explore what happens when we place ourselves beyond good and evil—from theory (Machiavelli) to psychology (Dostoevsky) to practice (Greene).",
+                books: [
+                  { id: "m26-1", title: "Crime and Punishment", author: "Fyodor Dostoevsky", pages: 671, year: 1866, type: "fiction", summary: "A destitute student commits murder to prove his extraordinary nature, then descends into psychological torment and eventual redemption." },
+                  { id: "m26-2", title: "The Prince", author: "Niccolò Machiavelli", pages: 140, year: 1532, type: "non-fiction", summary: "The foundational text on political power and pragmatic leadership. Argues that effective rulers must sometimes act immorally to maintain stability." },
+                  { id: "m26-3", title: "The 48 Laws of Power", author: "Robert Greene", pages: 452, year: 1998, type: "non-fiction", summary: "Distilled wisdom from 3,000 years of power dynamics—amoral lessons on gaining and maintaining influence from history's greatest strategists." }
+                ]
+              },
+              {
+                num: 27,
+                title: "Resilience & Strategy",
+                dates: "Jul 29 - Sep 22, 2028 + Buffer",
+                description: "Master the long game. Dumas crafts the ultimate revenge story—Dantès spends years learning languages, sciences, and strategy while imprisoned, then executes perfect vengeance. Epstein argues that this kind of broad learning beats early specialization, showing why generalists adapt better and innovate more. Patient accumulation of diverse knowledge creates unstoppable capability.",
+                books: [
+                  { id: "m27-1", title: "The Count of Monte Cristo", author: "Alexandre Dumas", pages: 1276, year: 1844, type: "fiction", summary: "The ultimate revenge tale—a wrongly imprisoned sailor escapes, discovers treasure, and systematically destroys those who betrayed him." },
+                  { id: "m27-2", title: "Range", author: "David Epstein", pages: 352, year: 2019, type: "non-fiction", summary: "Why generalists triumph in a specialized world—the power of broad experience and late specialization for creativity and success." }
+                ]
+              },
+              {
+                num: 28,
+                title: "Money Psychology & Expectations",
+                dates: "Sep 30 - Nov 3, 2028",
+                description: "Understand the emotional side of wealth. Pip's great expectations teach that money doesn't buy happiness, while Housel reveals why smart people make dumb financial decisions—it's psychology, not math. Both books shatter illusions: wealth is about behavior and values, not just numbers. Perfect preparation for thinking clearly about money and success.",
+                books: [
+                  { id: "m28-1", title: "Great Expectations", author: "Charles Dickens", pages: 544, year: 1861, type: "fiction", summary: "An orphan's journey from poverty to gentleman, learning that wealth and social class don't bring the happiness he imagined." },
+                  { id: "m28-2", title: "The Psychology of Money", author: "Morgan Housel", pages: 256, year: 2020, type: "non-fiction", summary: "Timeless lessons on wealth, greed, and happiness. Explores how psychology and behavior matter more than intelligence when it comes to money decisions." }
+                ]
+              },
+              {
+                num: 29,
+                title: "Epic Victorian Literature & Relationships",
+                dates: "Nov 4 - Dec 8, 2028",
+                description: "Master the art of human connection. Middlemarch reveals how social forces shape individual destinies in Victorian England. Carnegie provides timeless principles for building genuine relationships through empathy and interest in others. Ferrazzi then modernizes these principles for professional networking. Together: the social reality (Middlemarch), the timeless psychology (Carnegie), and the modern application (Ferrazzi).",
+                books: [
+                  { id: "m29-1", title: "Middlemarch", author: "George Eliot", pages: 880, year: 1871, type: "fiction", summary: "An epic portrait of provincial English life, following idealistic Dorothea and ambitious doctor Lydgate as their dreams collide with society's constraints." },
+                  { id: "m29-2", title: "How to Win Friends and Influence People", author: "Dale Carnegie", pages: 288, year: 1936, type: "non-fiction", summary: "Timeless principles for building genuine relationships: become genuinely interested in others, make people feel important, and avoid criticism." },
+                  { id: "m29-3", title: "Never Eat Alone", author: "Keith Ferrazzi", pages: 320, year: 2005, type: "non-fiction", summary: "How to build authentic, mutually beneficial relationships and leverage your network for career success and personal fulfillment." }
+                ]
+              },
+              {
+                num: 30,
+                title: "Mastery & Integration",
+                dates: "Dec 9, 2028 - Feb 20, 2029 + Celebration",
+                description: "Complete your transformation. Tolstoy's masterpiece weaves philosophy, war, romance, and history into an exploration of what makes life meaningful—showing that understanding comes from living fully, not from grand theories. Greene then distills the paths of history's masters into actionable principles. After 30 themes of reading, you're ready to apply everything you've learned and pursue your own mastery.",
+                books: [
+                  { id: "m30-1", title: "War and Peace", author: "Leo Tolstoy", pages: 1296, year: 1869, type: "fiction", summary: "The ultimate achievement—Russian aristocratic families navigate love, war, and philosophy during Napoleon's invasion. Epic in every sense." },
+                  { id: "m30-2", title: "Mastery", author: "Robert Greene", pages: 352, year: 2012, type: "non-fiction", summary: "The path to mastery through studying history's greatest masters—Mozart, Darwin, Leonardo—and applying their principles to your life's work." }
+                ]
+              }
+            ]
+          }
+        ];
+
+        const totalBooks = readingData.reduce((sum, phase) => 
+          sum + phase.months.reduce((s, m) => s + m.books.length, 0), 0
+        );
+        
+        const completedCount = Object.values(completedBooks).filter(Boolean).length;
+        const today = new Date().toISOString().split('T')[0];
+        const readToday = dailyLogs[today];
+        const currentReading = getCurrentMonth();
+        const filteredData = getFilteredData();
+        const allMonths = getAllMonths();
+return (
+          <div className="max-w-4xl mx-auto p-6 bg-gradient-to-br from-amber-50 to-orange-50 min-h-screen">
+            <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+              <h1 className="text-3xl font-bold text-gray-800 mb-2 flex items-center gap-2">
+                📚 30-Theme Reading Habit Builder
+              </h1>
+              <p className="text-gray-600 mb-6">{totalBooks} books • {getTimelineRange()}</p>
+              
+              {currentReading && (
+                <div className="mb-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border-2 border-blue-200">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xl">📖</span>
+                    <span className="font-bold text-blue-900">Currently Reading</span>
+                  </div>
+                  {currentReading.book && (
+                    <div>
+                      <div className="text-base font-semibold text-blue-900">
+                        {currentReading.book.title}
+                      </div>
+                      <div className="text-sm text-blue-700 mb-1">
+                        by {currentReading.book.author}
+                      </div>
+                    </div>
+                  )}
+                  <div className="text-sm text-blue-800">
+                    <span className="font-semibold">Theme {currentReading.month.num}:</span> {currentReading.month.title}
+                  </div>
+                  <div className="text-xs text-blue-600 mt-1">
+                    {currentReading.phase}
+                  </div>
+                </div>
+              )}
+
+              <div className="bg-white rounded-lg shadow-md p-4 mb-4">
+                <label className="font-semibold text-gray-700 mb-2 block">Jump to Theme:</label>
+                <select
+                  value={selectedMonth}
+                  onChange={(e) => {
+                    setSelectedMonth(e.target.value);
+                    jumpToMonth(e.target.value);
+                  }}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                >
+                  <option value="">Select a theme to jump to...</option>
+                  {allMonths.map(month => (
+                    <option key={month.num} value={month.num}>
+                      Theme {month.num}: {month.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="bg-white rounded-lg shadow-md p-4 mb-4">
+                <label className="font-semibold text-gray-700 mb-2 block">Search Books:</label>
+                <input
+                  type="text"
+                  placeholder="🔍 Search by title, author, or summary..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                <div className="bg-amber-100 rounded-lg p-4">
+                  <div className="text-2xl font-bold text-amber-800">{completedCount}</div>
+                  <div className="text-sm text-amber-700">Books Completed</div>
+                </div>
+                <div className="bg-blue-100 rounded-lg p-4">
+                  <div className="text-2xl font-bold text-blue-800">{totalBooks}</div>
+                  <div className="text-sm text-blue-700">Total Books</div>
+                </div>
+                <div className="bg-green-100 rounded-lg p-4">
+                  <div className="text-2xl font-bold text-green-800">{currentStreak}</div>
+                  <div className="text-sm text-green-700">Day Streak</div>
+                  <button
+                    onClick={() => {
+                      setCurrentStreak(0);
+                      setDailyLogs({});
+                      saveData(completedBooks, bookProgress, {}, 0);
+                    }}
+                    className="mt-2 text-xs text-green-600 hover:text-green-800 underline"
+                  >
+                    Reset streak
+                  </button>
+                </div>
+                <div className="bg-purple-100 rounded-lg p-4">
+                  <div className="text-2xl font-bold text-purple-800">
+                    {Math.round((completedCount / totalBooks) * 100)}%
+                  </div>
+                  <div className="text-sm text-purple-700">Progress</div>
+                </div>
+              </div>
+
+              <button
+                onClick={logToday}
+                disabled={readToday}
+                className={`w-full py-3 rounded-lg font-semibold flex items-center justify-center gap-2 transition-colors ${
+                  readToday
+                    ? 'bg-green-600 text-white cursor-not-allowed'
+                    : 'bg-amber-600 text-white hover:bg-amber-700'
+                }`}
+              >
+                📅 {readToday ? "✓ You've read today!" : "Log Today's Reading"}
+              </button>
+
+              <button
+                onClick={() => setShowCalendar(!showCalendar)}
+                className="w-full mt-2 py-3 rounded-lg font-semibold flex items-center justify-center gap-2 bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+              >
+                📆 {showCalendar ? "Hide Calendar" : "Show Reading Calendar"}
+              </button>
+
+              {showCalendar && (
+                <div className="mt-4 bg-white rounded-lg shadow-md p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <button
+                      onClick={() => setCalendarOffset(calendarOffset + 1)}
+                      className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                      title="Previous month"
+                    >
+                      ←
+                    </button>
+                    <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                      📆 {getCalendarTitle()}
+                    </h3>
+                    <button
+                      onClick={() => setCalendarOffset(Math.max(0, calendarOffset - 1))}
+                      disabled={calendarOffset === 0}
+                      className={`p-2 rounded-lg transition-colors ${
+                        calendarOffset === 0 
+                          ? 'text-gray-300 cursor-not-allowed' 
+                          : 'hover:bg-gray-100'
+                      }`}
+                      title="Next month"
+                    >
+                      →
+                    </button>
+                  </div>
+                  <div className="mb-3 flex gap-4 text-xs">
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 bg-green-500 rounded"></div>
+                      <span>Read</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 bg-gray-200 rounded"></div>
+                      <span>Missed</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 bg-blue-400 rounded ring-2 ring-blue-600"></div>
+                      <span>Today</span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-7 gap-1">
+                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                      <div key={day} className="text-xs text-center font-semibold text-gray-600 pb-1">
+                        {day}
+                      </div>
+                    ))}
+                    {getCalendarDays().map((day, idx) => {
+                      const isNewMonth = idx === 0 || day.dayOfMonth === 1;
+                      return (
+                        <div key={day.date} className="relative">
+                          {isNewMonth && (
+                            <div className="absolute -top-5 left-0 text-xs font-semibold text-gray-500">
+                              {getMonthName(day.month)}
+                            </div>
+                          )}
+                          <div
+                            className={`aspect-square rounded flex items-center justify-center text-xs font-medium ${
+                              day.isFuture
+                                ? 'bg-gray-100 text-gray-300'
+                                : day.isToday
+                                ? 'bg-blue-400 text-white ring-2 ring-blue-600'
+                                : day.isLogged
+                                ? 'bg-green-500 text-white'
+                                : 'bg-gray-200 text-gray-400'
+                            }`}
+                            title={`${day.date}${day.isLogged ? ' - Read!' : day.isFuture ? ' - Future' : ''}`}
+                          >
+                            {day.dayOfMonth}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-4 text-xs text-gray-600 text-center">
+                    <strong>{Object.keys(dailyLogs).length}</strong> total reading days logged
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {filteredData.map((phase, phaseIdx) => (
+              <div key={phaseIdx} className="mb-8">
+                <div className="bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-t-lg p-4">
+                  <h2 className="text-xl font-bold">{phase.phase}</h2>
+                  <p className="text-amber-100 text-sm">{phase.subtitle}</p>
+                </div>
+                {phase.phaseExplanation && (
+                  <div className="bg-amber-50 border-x border-amber-200 p-4">
+                    <p className="text-sm text-gray-700 leading-relaxed italic">
+                      {phase.phaseExplanation}
+                    </p>
+                  </div>
+                )}
+                
+                {phase.months.map((month) => {
+                  const isExpanded = expandedMonths[month.num];
+                  const monthCompleted = month.books.every(book => completedBooks[book.id]);
+                  const monthProgress = month.books.filter(book => completedBooks[book.id]).length;
+                  const { totalPages, readPages, remainingPages } = getMonthStats(month);
+                  const dateRange = calculateDateRange(month);
+                  const daysRemaining = getDaysRemaining(month);
+                  const isEditingDate = editingMonthDate === month.num;
+                  
+                  return (
+                    <div key={month.num} className="bg-white border-x border-b border-gray-200">
+                      <button
+                        id={`month-${month.num}`}
+                        onClick={() => toggleMonth(month.num)}
+                        className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                      >
+                        <div className="flex-1 text-left">
+                          <div className="flex items-center gap-3 flex-wrap">
+                            <span className="font-bold text-lg text-gray-800">
+                              Theme {month.num}
+                            </span>
+                            {monthCompleted && <span className="text-green-600">🏆</span>}
+                            <span className="text-gray-600">{month.title}</span>
+                          </div>
+                          <div className="text-sm text-gray-500 mt-1">
+                            {isEditingDate ? (
+                              <div className="flex gap-2 items-center" onClick={(e) => e.stopPropagation()}>
+                                <input
+                                  type="date"
+                                  value={editDateValue}
+                                  onChange={(e) => setEditDateValue(e.target.value)}
+                                  className="px-2 py-1 border border-gray-300 rounded text-sm"
+                                  autoFocus
+                                />
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    saveMonthStartDate(month.num);
+                                  }}
+                                  className="p-1 bg-green-600 text-white rounded hover:bg-green-700"
+                                >
+                                  💾
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    cancelDateEdit();
+                                  }}
+                                  className="p-1 bg-gray-400 text-white rounded hover:bg-gray-500"
+                                >
+                                  ✖
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <span>{dateRange}</span>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    startEditingMonthDate(month.num, monthStartDates[month.num]);
+                                  }}
+                                  className="text-amber-600 hover:text-amber-700"
+                                >
+                                  ✏️
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex gap-4 mt-2 flex-wrap text-xs">
+                            <span className="text-amber-600 font-semibold">
+                              {monthProgress}/{month.books.length} books completed
+                            </span>
+                            {daysRemaining !== null && (
+                              <span className={`font-semibold ${
+                                daysRemaining < 0 ? 'text-red-600' : daysRemaining < 7 ? 'text-orange-600' : 'text-green-600'
+                              }`}>
+                                📅 {daysRemaining < 0 ? `${Math.abs(daysRemaining)} days overdue` : `${daysRemaining} days remaining`}
+                              </span>
+                            )}
+                            <span className="text-blue-600">
+                              📖 {totalPages.toLocaleString()} total pages
+                            </span>
+                            <span className="text-green-600">
+                              ✓ {readPages.toLocaleString()} read
+                            </span>
+                            <span className="text-orange-600">
+                              ⏳ {remainingPages.toLocaleString()} remaining
+                            </span>
+                          </div>
+                        </div>
+                        <span className="text-2xl">{isExpanded ? '▲' : '▼'}</span>
+                      </button>
+
+                      {isExpanded && (
+                        <div className="p-4 bg-gray-50 border-t border-gray-200">
+                          {month.description && (
+                            <div className="mb-4 p-3 bg-blue-50 rounded-lg text-sm text-gray-700 leading-relaxed">
+                              {month.description}
+                            </div>
+                          )}
+                          {month.focus && (
+                            <div className="mb-4 p-3 bg-amber-100 rounded-lg text-sm text-amber-800">
+                              <strong>Focus:</strong> {month.focus}
+                            </div>
+                          )}
+                          <div className="space-y-3">
+                            {month.books.map((book) => {
+                              const currentProgress = bookProgress[book.id] || 0;
+                              const isCompleted = completedBooks[book.id];
+                              const isEditing = editingBook === book.id;
+                              const pagesRemaining = book.pages - currentProgress;
+                              const progressPercent = Math.round((currentProgress / book.pages) * 100);
+
+                              return (
+                                <div
+                                  key={book.id}
+                                  className={`p-4 rounded-lg border-2 transition-all ${
+                                    isCompleted
+                                      ? 'bg-green-50 border-green-500'
+                                      : 'bg-white border-gray-200'
+                                  }`}
+                                >
+                                  <div className="flex items-start gap-3">
+                                    <div
+                                      className={`mt-1 flex-shrink-0 w-6 h-6 rounded border-2 flex items-center justify-center cursor-pointer ${
+                                        isCompleted
+                                          ? 'bg-green-500 border-green-500'
+                                          : 'border-gray-300 hover:border-amber-400'
+                                      }`}
+                                      onClick={() => toggleBook(book.id)}
+                                    >
+                                      {isCompleted && <span className="text-white text-sm">✓</span>}
+                                    </div>
+                                    <div className="flex-1">
+                                      <div className="font-semibold text-gray-800">{book.title}</div>
+                                      <div className="text-sm text-gray-600">{book.author}</div>
+                                      {book.summary && (
+                                        <div className="text-xs text-gray-500 mt-2 italic leading-relaxed">
+                                          {book.summary}
+                                        </div>
+                                      )}
+                                      <div className="flex gap-3 mt-2 flex-wrap items-center">
+                                        <span className="text-xs text-gray-500">{book.pages} pages</span>
+                                        {book.year && (
+                                          <span className="text-xs text-gray-500">• {book.year}</span>
+                                        )}
+                                        <span className={`text-xs px-2 py-1 rounded ${
+                                          book.type === 'fiction'
+                                            ? 'bg-purple-100 text-purple-700'
+                                            : 'bg-blue-100 text-blue-700'
+                                        }`}>
+                                          {book.type === 'fiction' ? '📖 Fiction' : '📚 Non-Fiction'}
+                                        </span>
+                                      </div>
+
+                                      {!isCompleted && (
+                                        <div className="mt-3">
+                                          {isEditing ? (
+                                            <div className="flex gap-2 items-center">
+                                              <input
+                                                type="number"
+                                                value={editValue}
+                                                onChange={(e) => setEditValue(e.target.value)}
+                                                min="0"
+                                                max={book.pages}
+                                                className="w-24 px-2 py-1 border border-gray-300 rounded text-sm"
+                                                placeholder="Pages"
+                                                autoFocus
+                                              />
+                                              <span className="text-xs text-gray-500">/ {book.pages}</span>
+                                              <button
+                                                onClick={() => saveBookProgress(book.id, book.pages)}
+                                                className="p-1 bg-green-600 text-white rounded hover:bg-green-700 text-xs"
+                                              >
+                                                💾
+                                              </button>
+                                              <button
+                                                onClick={cancelEdit}
+                                                className="p-1 bg-gray-400 text-white rounded hover:bg-gray-500 text-xs"
+                                              >
+                                                ✖
+                                              </button>
+                                            </div>
+                                          ) : (
+                                            <div>
+                                              <div className="flex items-center gap-2 mb-2">
+                                                <div className="flex-1 bg-gray-200 rounded-full h-2">
+                                                  <div
+                                                    className="bg-amber-600 h-2 rounded-full transition-all"
+                                                    style={{ width: `${progressPercent}%` }}
+                                                  />
+                                                </div>
+                                                <span className="text-xs font-semibold text-gray-700">
+                                                  {progressPercent}%
+                                                </span>
+                                              </div>
+                                              <div className="flex gap-2 items-center">
+                                                <span className="text-xs text-gray-600">
+                                                  {currentProgress} of {book.pages} pages
+                                                </span>
+                                                <span className="text-xs text-orange-600">
+                                                  ({pagesRemaining} left)
+                                                </span>
+                                                <button
+                                                  onClick={() => startEditingBook(book.id, currentProgress)}
+                                                  className="ml-auto text-amber-600 hover:text-amber-700"
+                                                >
+                                                  ✏️
+                                                </button>
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+
+            <div className="bg-white rounded-lg shadow-lg p-6 mt-8">
+              <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                📈 Your Reading Journey
+              </h3>
+              <div className="space-y-2 text-sm text-gray-600">
+                <p>🎯 <strong>Phase 1 (Themes 1-3):</strong> Build the habit - consistency over completion</p>
+                <p>🧠 <strong>Phase 2 (Themes 4-9):</strong> Understanding self - sustainable pace</p>
+                <p>💫 <strong>Phase 3 (Themes 10-15):</strong> Finding meaning - deeper engagement</p>
+                <p>⚙️ <strong>Phase 4 (Themes 16-22):</strong> Building systems - strong reader now</p>
+                <p>🏆 <strong>Phase 5 (Themes 23-30):</strong> Creating success - mastery level</p>
+              </div>
+              <div className="mt-4 p-4 bg-amber-50 rounded-lg">
+                <p className="text-sm text-amber-800">
+                  <strong>Remember:</strong> Book swaps are allowed! If a book isn't working, switch within the same theme. 
+                  Buffer weeks are built in for catch-up. This is a marathon, not a sprint.
+                </p>
+              </div>
+            </div>
+          </div>
+        );
+      };
+
+      ReactDOM.render(
+        React.createElement(ReadingHabitTracker),
+        document.getElementById('root')
+      );
+    </script>
+  </body>
+</html>
+
