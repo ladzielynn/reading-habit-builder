@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reading Tracker</title>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+  <div id="root"></div>
+  
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // All your data embedded here
+    const readingData = [
+      {
+        phase: "Phase 1: HABIT FORMATION",
+        subtitle: "Build daily consistency",
+        months: [
+          {
+            num: 1,
+            title: "Technology & Dark Patterns",
+            books: [
+              { id: "m1-1", title: "The Circle", author: "Dave Eggers", pages: 497 },
+              { id: "m1-2", title: "Influence", author: "Robert Cialdini", pages: 320 }
+            ]
+          },
+          {
+            num: 2,
+            title: "Deep Thinking",
+            books: [
+              { id: "m2-1", title: "The Remains of the Day", author: "Kazuo Ishiguro", pages: 258 },
+              { id: "m2-2", title: "Thinking, Fast and Slow", author: "Daniel Kahneman", pages: 499 }
+            ]
+          },
+          {
+            num: 3,
+            title: "Heartwarming Growth",
+            books: [
+              { id: "m3-1", title: "A Man Called Ove", author: "Fredrik Backman", pages: 337 },
+              { id: "m3-2", title: "The Body Keeps the Score", author: "Bessel van der Kolk", pages: 464 }
+            ]
+          }
+        ]
+      },
+      {
+        phase: "Phase 2: UNDERSTANDING SELF",
+        subtitle: "Sustainable pace",
+        months: [
+          {
+            num: 4,
+            title: "Introversion",
+            books: [
+              { id: "m4-1", title: "Stoner", author: "John Williams", pages: 288 },
+              { id: "m4-2", title: "Quiet", author: "Susan Cain", pages: 368 }
+            ]
+          },
+          {
+            num: 5,
+            title: "Wealth & Society",
+            books: [
+              { id: "m5-1", title: "The Great Gatsby", author: "F. Scott Fitzgerald", pages: 180 },
+              { id: "m5-2", title: "The Social Animal", author: "David Brooks", pages: 424 }
+            ]
+          }
+        ]
+      }
+    ];
+
+    const App = () => {
+      const [completed, setCompleted] = useState({});
+      const [logs, setLogs] = useState({});
+      const [streak, setStreak] = useState(0);
+
+      useEffect(() => {
+        try {
+          const saved = localStorage.getItem('reading-data');
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            setCompleted(parsed.completed || {});
+            setLogs(parsed.logs || {});
+            setStreak(parsed.streak || 0);
+          }
+        } catch (e) {
+          console.log('Starting fresh');
+        }
+      }, []);
+
+      const save = (comp, log, str) => {
+        try {
+          localStorage.setItem('reading-data', JSON.stringify({
+            completed: comp,
+            logs: log,
+            streak: str
+          }));
+        } catch (e) {
+          console.error('Save failed');
+        }
+      };
+
+      const toggle = (id) => {
+        const newCompleted = { ...completed, [id]: !completed[id] };
+        setCompleted(newCompleted);
+        save(newCompleted, logs, streak);
+      };
+
+      const logDay = () => {
+        const today = new Date().toISOString().split('T')[0];
+        const newLogs = { ...logs, [today]: true };
+        let newStreak = 0;
+        
+        for (let i = 0; i < 365; i++) {
+          const d = new Date();
+          d.setDate(d.getDate() - i);
+          if (newLogs[d.toISOString().split('T')[0]]) {
+            newStreak++;
+          } else {
+            break;
+          }
+        }
+        
+        setLogs(newLogs);
+        setStreak(newStreak);
+        save(completed, newLogs, newStreak);
+      };
+
+      const total = readingData.reduce((s, p) => 
+        s + p.months.reduce((m, mo) => m + mo.books.length, 0), 0
+      );
+      const done = Object.values(completed).filter(Boolean).length;
+      const today = new Date().toISOString().split('T')[0];
+
+      return (
+        <div className="max-w-4xl mx-auto p-6 bg-gradient-to-br from-amber-50 to-orange-50 min-h-screen">
+          <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+            <h1 className="text-3xl font-bold text-gray-800 mb-2">
+              📚 Reading Habit Tracker
+            </h1>
+            <p className="text-gray-600 mb-6">{total} books across 30 themes</p>
+            
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+              <div className="bg-amber-100 rounded-lg p-4">
+                <div className="text-2xl font-bold text-amber-800">{done}</div>
+                <div className="text-sm text-amber-700">Completed</div>
+              </div>
+              <div className="bg-blue-100 rounded-lg p-4">
+                <div className="text-2xl font-bold text-blue-800">{total}</div>
+                <div className="text-sm text-blue-700">Total</div>
+              </div>
+              <div className="bg-green-100 rounded-lg p-4">
+                <div className="text-2xl font-bold text-green-800">{streak}</div>
+                <div className="text-sm text-green-700">Streak</div>
+              </div>
+              <div className="bg-purple-100 rounded-lg p-4">
+                <div className="text-2xl font-bold text-purple-800">
+                  {Math.round((done/total)*100)}%
+                </div>
+                <div className="text-sm text-purple-700">Progress</div>
+              </div>
+            </div>
+
+            <button
+              onClick={logDay}
+              disabled={logs[today]}
+              className={`w-full py-3 rounded-lg font-semibold transition-colors ${
+                logs[today] 
+                  ? 'bg-green-600 text-white cursor-not-allowed' 
+                  : 'bg-amber-600 text-white hover:bg-amber-700'
+              }`}
+            >
+              {logs[today] ? "✓ You've read today!" : "📅 Log Today's Reading"}
+            </button>
+          </div>
+
+          {readingData.map((phase, i) => (
+            <div key={i} className="mb-8">
+              <div className="bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-t-lg p-4">
+                <h2 className="text-xl font-bold">{phase.phase}</h2>
+                <p className="text-amber-100 text-sm">{phase.subtitle}</p>
+              </div>
+              
+              {phase.months.map(month => (
+                <div key={month.num} className="bg-white border border-gray-200 p-4">
+                  <h3 className="font-bold text-lg mb-3">
+                    Theme {month.num}: {month.title}
+                  </h3>
+                  
+                  <div className="space-y-3">
+                    {month.books.map(book => (
+                      <div
+                        key={book.id}
+                        className={`p-4 rounded-lg border-2 transition-all ${
+                          completed[book.id] 
+                            ? 'bg-green-50 border-green-500' 
+                            : 'bg-white border-gray-200'
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div
+                            onClick={() => toggle(book.id)}
+                            className={`mt-1 w-6 h-6 rounded border-2 flex items-center justify-center cursor-pointer ${
+                              completed[book.id] 
+                                ? 'bg-green-500 border-green-500 text-white' 
+                                : 'border-gray-300 hover:border-amber-400'
+                            }`}
+                          >
+                            {completed[book.id] && '✓'}
+                          </div>
+                          <div className="flex-1">
+                            <div className="font-semibold text-gray-800">
+                              {book.title}
+                            </div>
+                            <div className="text-sm text-gray-600">
+                              {book.author}
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">
+                              {book.pages} pages
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
